@@ -9,6 +9,7 @@ node_modules/
 /reference/
 *.html
 !assets/viewer/index.template.html
+!demo/*.html
 
 # python
 __pycache__/

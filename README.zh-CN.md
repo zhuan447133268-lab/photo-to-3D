@@ -2,6 +2,8 @@
 
 把一个产品照片集，做成**经过实测的单文件交互式 Three.js 演示页**：可拖拽旋转、点选零件、爆炸拆解、线框、自动旋转、重置视角——全部在一个 HTML 文件里，发给人就能打开。
 
+现成的成品在 [`demo/`](demo/README.md)：双击 `demo/mdr-zx310.html` 就能看，不用装任何东西，也不用构建。
+
 ![轨道旋转](docs/screenshots/01-orbit.png)
 
 它是 [img2threejs](https://github.com/img2threejs/img2threejs) 的前端封装。上游做的事是：按轮次
@@ -91,6 +93,8 @@ blockout -> structural-pass -> form-refinement -> material-pass
 ```
 SKILL.md                    给 agent 的操作流程，以及什么时候该拒绝接活
 plugin.json                 插件清单（schema 1）
+demo/                       一个打包好的成品，不用构建就能打开
+docs/screenshots/           README 里那四张帧，由浏览器实测截取
 references/
   pipeline.md               每一轮改什么、看什么
   traps.md                  26 条 症状 → 原因 → 修法，全部来自真实交付

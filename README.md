@@ -4,6 +4,9 @@ An agent skill that turns product photographs into a **tested, single-file inter
 orbit, click a part to inspect it, explode the assembly, wireframe, auto-rotate, reset — all in one HTML
 file you can mail to someone.
 
+A packed example ships in [`demo/`](demo/README.md): open `demo/mdr-zx310.html` by double-clicking, with
+nothing installed and nothing built.
+
 ![Orbit](docs/screenshots/01-orbit.png)
 
 It is a front end for [img2threejs](https://github.com/img2threejs/img2threejs). Upstream reconstructs a
@@ -102,6 +105,8 @@ screenshot files that exist on disk. Low scores are allowed; missing scores are 
 ```
 SKILL.md                    the procedure an agent follows, and when to refuse the job
 plugin.json                 manifest for the plugin harness (schema 1)
+demo/                       one packed deliverable, to open without building anything
+docs/screenshots/           the four frames the README shows, taken by the browser test
 references/
   pipeline.md               what to change and what to look for in each pass
   traps.md                  26 symptom -> cause -> fix entries from real deliveries
