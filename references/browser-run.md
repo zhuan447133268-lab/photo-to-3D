@@ -11,6 +11,7 @@ capture presets and the assertions are identical either way.
 
 ```bash
 # the portable driver is a dev dependency; this uses your installed Chrome via channel: "chrome"
+# assets/build/bootstrap.sh does this install, and launches one browser to prove it
 npm install
 # if Chrome is not installed: npx playwright install chromium   (then PW_CHANNEL="" to use the bundle)
 

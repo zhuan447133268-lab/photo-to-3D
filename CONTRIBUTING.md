@@ -57,11 +57,11 @@ numbering stable — other documents cite traps by number.
 
 ## Before you open a pull request
 
-- `python -m py_compile assets/build/pack_single.py assets/viewer/render_viewer.py`
+- `python3 -m py_compile assets/build/pack_single.py assets/viewer/render_viewer.py`
 - `bash -n assets/build/*.sh`
 - `node --check assets/build/*.mjs drivers/*.mjs`
 - If you touched the viewer or the packer, run one real workspace end to end and say in the pull
-  request which product, how many parts, and whether all five interaction assertions passed.
+  request which product, how many parts, and whether all six interaction assertions passed.
 
 ## License
 

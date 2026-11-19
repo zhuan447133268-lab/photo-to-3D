@@ -8,6 +8,11 @@
 set -euo pipefail
 
 WP="${1:?usage: setup_workspace.sh <work-dir>}"
+command -v npm >/dev/null 2>&1 || {
+  echo "npm not found. Install Node 18+ (npm ships with it), then re-run." >&2
+  echo "assets/build/bootstrap.sh checks everything else this skill needs." >&2
+  exit 1
+}
 mkdir -p "$WP"/reference "$WP"/spec/crops "$WP"/spec/pbr "$WP"/src "$WP"/review/captures "$WP"/dist "$WP"/build/src
 
 cd "$WP/build"

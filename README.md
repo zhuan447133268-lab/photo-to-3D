@@ -41,42 +41,61 @@ generator emits one material instance per material id and both sides share it.
 
 ![Explode](docs/screenshots/03-explode.png)
 
-## Requirements
-
-- Node 18+ and Chrome (for `playwright-core`; `npx playwright install chromium` also works)
-- Python 3.9+ (standard library only — no Pillow, no NumPy)
-- bash with `find`/`sort`/`uniq`
-- A checkout of [img2threejs](https://github.com/img2threejs/img2threejs)
-- Two to four photographs of one object
-
-## Quick start
+## Install (once per machine)
 
 ```bash
 git clone <this repo> ~/photo-to-3d-demo
-ENGINE=~/img2threejs                       # a checkout of upstream
+bash ~/photo-to-3d-demo/assets/build/bootstrap.sh --check
+```
+
+`bootstrap.sh` installs `playwright-core` into the repo — it drives the Chrome already on the machine and
+downloads no browser — and clones [img2threejs](https://github.com/img2threejs/img2threejs) into
+`$HOME/.cache/photo-to-3d/img2threejs` when no checkout exists. `--check` then runs the generator's
+`--help` and launches one real browser through the driver layer, so a fresh machine fails here instead of
+three passes in.
+
+It checks for Node 18+, npm, git, Python 3.9+ (standard library only) and Chrome, and reports what is
+missing. `three` and `esbuild` are deliberately **not** installed globally: `setup_workspace.sh` pins them
+per workspace, because a newer three can shift PMREM or OrbitControls behaviour and invalidate a review
+that was already signed off.
+
+Two optional variables, both with working defaults:
+
+| Variable | Default | Set it when |
+| --- | --- | --- |
+| `IMG2THREEJS_ENGINE` | third argument to `build_pass.sh`, else `~/.workbuddy/skills/img2threejs`, else `~/.cache/photo-to-3d/img2threejs` | the upstream checkout lives elsewhere |
+| `PYTHON` | `python3`, falling back to `python` | neither is on `PATH`, or `python3` is older than 3.9 |
+
+## Quick start
+
+You need two to four photographs of one object; the packed demo in `demo/` needs none of this.
+
+```bash
+bash ~/photo-to-3d-demo/assets/build/bootstrap.sh --check   # deps + engine, once
+
 SLUG=my-product
 WP=~/photo-to-3d/$SLUG
-
-bash assets/build/setup_workspace.sh "$WP"
+bash ~/photo-to-3d-demo/assets/build/setup_workspace.sh "$WP"
 cp /path/to/photo.jpg "$WP/reference/ref.jpg"
 
 # stage 1-2: crop per material, extract PBR, write spec/object-sculpt-spec.json
 # then, per pass (fixed order, one concern per pass):
-bash assets/build/build_pass.sh "$WP" blockout "$ENGINE"
-python -m http.server 8100 --directory "$WP/build" &
+bash ~/photo-to-3d-demo/assets/build/build_pass.sh "$WP" blockout
+python3 -m http.server 8100 --directory "$WP/build" &
 
-node assets/build/capture_frames.mjs --url http://127.0.0.1:8100/ \
+node ~/photo-to-3d-demo/assets/build/capture_frames.mjs --url http://127.0.0.1:8100/ \
   --out "$WP/review/captures" --pass-id blockout --shots silhouette,refmatch --driver playwright
 
 # look at the frame, edit the spec, record the review, next pass
-python "$ENGINE/forge/stage4_review/append_review.py" "$WP/spec/object-sculpt-spec.json" ...
+ENGINE="${IMG2THREEJS_ENGINE:-$HOME/.cache/photo-to-3d/img2threejs}"
+python3 "$ENGINE/forge/stage4_review/append_review.py" "$WP/spec/object-sculpt-spec.json" ...
 ```
 
 Then pack and test:
 
 ```bash
-python assets/build/pack_single.py "$WP/build" "$WP/dist/$SLUG.html"
-node assets/build/test_interactions.mjs --url http://127.0.0.1:8100/dist/$SLUG.html \
+python3 ~/photo-to-3d-demo/assets/build/pack_single.py "$WP/build" "$WP/dist/$SLUG.html"
+node ~/photo-to-3d-demo/assets/build/test_interactions.mjs --url http://127.0.0.1:8100/dist/$SLUG.html \
   --out "$WP/review/captures" --prefix single-file --driver playwright
 ```
 
@@ -113,6 +132,7 @@ references/
   review-cli.md             the append_review.py flag set, and the rules it enforces
   browser-run.md            both drivers, capture presets, emitImage
 assets/build/
+  bootstrap.sh              dependency check + engine clone + one browser launch (--check)
   setup_workspace.sh        workspace tree + pinned three@0.169.0, esbuild@0.24.0
   build_pass.sh             generate factory -> copy maps -> bundle
   pack_single.py            inline JS + every texture, verify zero external refs

@@ -173,6 +173,6 @@ documents.
 
 ### 26. `file://` will not open the deliverable
 - Cause: automated browsers block `file://`.
-- Fix: serve a directory containing only the single file (`python -m http.server 8101 --directory
+- Fix: serve a directory containing only the single file (`python3 -m http.server 8101 --directory
   dist`) and test "zero external dependencies" through that. Mention that a real browser can also open
   it by double-clicking.

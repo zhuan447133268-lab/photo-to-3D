@@ -18,26 +18,38 @@ set -euo pipefail
 
 WP="${1:?usage: build_pass.sh <work-dir> <pass-id> [engine-dir]}"
 PASS="${2:?pass id required}"
-ENGINE="${3:-$HOME/.workbuddy/skills/img2threejs}"
+# Engine precedence: third argument, then IMG2THREEJS_ENGINE, then the historical default, then the
+# bootstrap clone location. Never a hard requirement on one machine layout.
+ENGINE="${3:-${IMG2THREEJS_ENGINE:-$HOME/.workbuddy/skills/img2threejs}}"
+if [ ! -f "$ENGINE/forge/stage3_build/generate_threejs_factory.py" ] \
+   && [ -f "$HOME/.cache/photo-to-3d/img2threejs/forge/stage3_build/generate_threejs_factory.py" ]; then
+  ENGINE="$HOME/.cache/photo-to-3d/img2threejs"
+fi
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Called with the same name everywhere in the docs, so resolve the interpreter rather than assuming a
+# platform: macOS ships python3 only, many Windows installs expose python.
+PY="${PYTHON:-$(command -v python3 || command -v python || true)}"
 
 SPEC="$WP/spec/object-sculpt-spec.json"
 FACTORY="$WP/src/model.ts"
 BUILD="$WP/build"
 
 [ -f "$SPEC" ] || { echo "missing spec: $SPEC" >&2; exit 1; }
+[ -n "$PY" ] || { echo "python 3.9+ not found; set PYTHON=/path/to/python3" >&2; exit 1; }
 [ -f "$ENGINE/forge/stage3_build/generate_threejs_factory.py" ] \
-  || { echo "engine not found at $ENGINE (pass it as the third argument)" >&2; exit 1; }
+  || { echo "engine not found at $ENGINE (pass it as the third argument, or set IMG2THREEJS_ENGINE;" >&2
+       echo "  bash \"$SKILL_DIR/assets/build/bootstrap.sh\" can clone it for you)" >&2; exit 1; }
 
 # 1. generate the factory for this pass
-python "$ENGINE/forge/stage3_build/generate_threejs_factory.py" "$SPEC" \
+"$PY" "$ENGINE/forge/stage3_build/generate_threejs_factory.py" "$SPEC" \
   --pass-id "$PASS" --out "$FACTORY" --force
 cp -f "$FACTORY" "$BUILD/src/model.ts"
 
 # 2. textures load by bare filename, so they must live at the page root
 mkdir -p "$BUILD"
 if [ -d "$WP/spec/pbr" ]; then
-  dupes=$(find "$WP/spec/pbr" -type f -name '*.png' -printf '%f\n' | sort | uniq -d)
+  # POSIX only: BSD find has no -printf. awk does the basename split on every platform.
+  dupes=$(find "$WP/spec/pbr" -type f -name '*.png' | awk -F/ '{print $NF}' | sort | uniq -d)
   if [ -n "$dupes" ]; then
     echo "duplicate texture basenames — one would silently overwrite the other:" >&2
     echo "$dupes" >&2
@@ -52,7 +64,7 @@ fi
 
 # 4. build the viewer shell once; re-run render_viewer.py directly to change titles or exposure
 if [ ! -f "$BUILD/index.html" ] || [ ! -f "$WP/src/main.ts" ]; then
-  python "$SKILL_DIR/assets/viewer/render_viewer.py" \
+  "$PY" "$SKILL_DIR/assets/viewer/render_viewer.py" \
     --factory-file "$FACTORY" --out-dir "$WP/src" --build-dir "$BUILD"
 fi
 [ -f "$WP/src/main.ts" ] || { echo "viewer shell missing: $WP/src/main.ts" >&2; exit 1; }
@@ -70,6 +82,6 @@ else
 fi
 
 markers=$(grep -c 'userData.sculptComponent' "$FACTORY" || true)
-maps=$(find . -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')
-echo "built pass '${PASS}': ${markers} component markers, ${maps} maps at page root, app.js $(du -h app.js | cut -f1)"
-echo "preview: python -m http.server 8100 --directory \"$BUILD\""
+maps=$(ls -1 *.png 2>/dev/null | wc -l | tr -d ' ')
+echo "built pass '${PASS}': ${markers} component markers, ${maps} maps at page root, app.js $(du -h app.js | awk '{print $1}')"
+echo "preview: \"$PY\" -m http.server 8100 --directory \"$BUILD\""

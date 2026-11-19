@@ -3,14 +3,19 @@
 Engine location, once:
 
 ```bash
-ENGINE=/path/to/img2threejs      # a checkout of https://github.com/img2threejs/img2threejs
+ENGINE="${IMG2THREEJS_ENGINE:-$HOME/.cache/photo-to-3d/img2threejs}"   # a checkout of
+                                       # https://github.com/img2threejs/img2threejs
 SPEC="$WP/spec/object-sculpt-spec.json"
 ```
+
+Every command below says `python3`; on a machine where only `python` exists, use that instead. The shell
+scripts pick whichever is on `PATH` (or `PYTHON`, if set), so this only matters when you call the
+generator or the review tool by hand.
 
 ## Generate one pass
 
 ```bash
-python "$ENGINE/forge/stage3_build/generate_threejs_factory.py" "$SPEC" \
+python3 "$ENGINE/forge/stage3_build/generate_threejs_factory.py" "$SPEC" \
   --pass-id <pass-id> --out "$WP/src/model.ts" --force
 ```
 
@@ -23,7 +28,7 @@ spec, and every map reached the `build/` root.
 ## Record the review
 
 ```bash
-python "$ENGINE/forge/stage4_review/append_review.py" "$SPEC" \
+python3 "$ENGINE/forge/stage4_review/append_review.py" "$SPEC" \
   --pass-id <pass-id> \
   --fidelity 0.80 \
   --action continue \
@@ -90,8 +95,8 @@ visible, do not edit scores to make everything green.
 ## Status check
 
 ```bash
-python "$ENGINE/forge/next.py" "$SPEC"      # what the next pass should be, when that script exists
-python - <<'PY'
+python3 "$ENGINE/forge/next.py" "$SPEC"      # what the next pass should be, when that script exists
+python3 - <<'PY'
 import json, pathlib, os
 spec = json.loads(pathlib.Path(os.environ["SPEC"]).read_text(encoding="utf-8"))
 print([(r["passId"], r["action"], r["estimatedFidelity"]) for r in spec["reviewHistory"]])

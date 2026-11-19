@@ -34,41 +34,59 @@ spec/object-sculpt-spec.json  整个模型即数据：几何、材质、假设�
 
 ![爆炸视图](docs/screenshots/03-explode.png)
 
-## 依赖
-
-- Node 18+ 与 Chrome（`playwright-core` 用本机 Chrome；也可以 `npx playwright install chromium`）
-- Python 3.9+（只用标准库，不需要 Pillow / NumPy）
-- bash + `find`/`sort`/`uniq`
-- 一份 [img2threejs](https://github.com/img2threejs/img2threejs) 的 checkout
-- 同一个物体的 2–4 张照片
-
-## 快速开始
+## 安装（每台机器一次）
 
 ```bash
 git clone <本仓库> ~/photo-to-3d-demo
-ENGINE=~/img2threejs         # 上游 checkout
+bash ~/photo-to-3d-demo/assets/build/bootstrap.sh --check
+```
+
+`bootstrap.sh` 会做两件事：把 `playwright-core` 装进仓库（它驱动你本机已有的 Chrome，不下载浏览器）；
+在没有现成 checkout 时，把 [img2threejs](https://github.com/img2threejs/img2threejs) clone 到
+`$HOME/.cache/photo-to-3d/img2threejs`。之后 `--check` 会跑一遍生成器的 `--help`，并通过驱动层真正
+拉起一次浏览器——所以缺东西的机器在这里就失败，而不是做到第三轮才发现。
+
+它检查 Node 18+、npm、git、Python 3.9+（只用标准库）和 Chrome，缺什么就直说。`three` 与 `esbuild`
+**故意不**全局安装：由 `setup_workspace.sh` 按工作区固定版本，因为换一个 three 可能改变 PMREM 或
+OrbitControls 的行为，把已经签过字的评审结果作废。
+
+两个变量都可选，默认值能跑：
+
+| 变量 | 默认解析顺序 | 什么时候要设 |
+| --- | --- | --- |
+| `IMG2THREEJS_ENGINE` | `build_pass.sh` 第三个参数 → `~/.workbuddy/skills/img2threejs` → `~/.cache/photo-to-3d/img2threejs` | 上游 checkout 放在别处 |
+| `PYTHON` | `python3`，没有再找 `python` | 两个都不在 `PATH`，或 `python3` 低于 3.9 |
+
+## 快速开始
+
+还需要同一个物体的 2–4 张照片；只看 `demo/` 里的成品则什么都不用装。
+
+```bash
+bash ~/photo-to-3d-demo/assets/build/bootstrap.sh --check   # 依赖 + 引擎，一次即可
 SLUG=my-product
 WP=~/photo-to-3d/$SLUG
 
-bash assets/build/setup_workspace.sh "$WP"
+bash ~/photo-to-3d-demo/assets/build/setup_workspace.sh "$WP"
 cp /path/to/photo.jpg "$WP/reference/ref.jpg"
 
 # 阶段 1–2：按材质裁图、提取 PBR、写 spec/object-sculpt-spec.json
 # 然后逐轮执行（顺序固定，一轮只解决一件事）：
-bash assets/build/build_pass.sh "$WP" blockout "$ENGINE"
-python -m http.server 8100 --directory "$WP/build" &
+bash ~/photo-to-3d-demo/assets/build/build_pass.sh "$WP" blockout
+python3 -m http.server 8100 --directory "$WP/build" &
 
-node assets/build/capture_frames.mjs --url http://127.0.0.1:8100/ \
+node ~/photo-to-3d-demo/assets/build/capture_frames.mjs --url http://127.0.0.1:8100/ \
   --out "$WP/review/captures" --pass-id blockout --shots silhouette,refmatch --driver playwright
 
 # 看这张帧 → 改 spec → 记录评审 → 下一轮
+ENGINE="${IMG2THREEJS_ENGINE:-$HOME/.cache/photo-to-3d/img2threejs}"
+python3 "$ENGINE/forge/stage4_review/append_review.py" "$WP/spec/object-sculpt-spec.json" ...
 ```
 
 打包与测试：
 
 ```bash
-python assets/build/pack_single.py "$WP/build" "$WP/dist/$SLUG.html"
-node assets/build/test_interactions.mjs --url http://127.0.0.1:8100/dist/$SLUG.html \
+python3 ~/photo-to-3d-demo/assets/build/pack_single.py "$WP/build" "$WP/dist/$SLUG.html"
+node ~/photo-to-3d-demo/assets/build/test_interactions.mjs --url http://127.0.0.1:8100/dist/$SLUG.html \
   --out "$WP/review/captures" --prefix single-file --driver playwright
 ```
 
@@ -101,6 +119,7 @@ references/
   review-cli.md             append_review.py 的参数集与硬规则
   browser-run.md            两种驱动、抓帧预设、emitImage
 assets/build/
+  bootstrap.sh              依赖检查 + clone 引擎 + 真拉一次浏览器（--check）
   setup_workspace.sh        建目录 + 固定 three@0.169.0 / esbuild@0.24.0
   build_pass.sh             生成工厂 → 拷贴图 → 打包
   pack_single.py            内联 JS 与全部贴图，并校验零外部引用

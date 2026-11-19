@@ -35,6 +35,39 @@ version: 0.1.0
 
 Say this before starting, not after the work is done.
 
+## Install (once per machine)
+
+```bash
+git clone <this repo> ~/photo-to-3d-demo
+bash ~/photo-to-3d-demo/assets/build/bootstrap.sh --check
+```
+
+Put the clone where the agent can read it — `~/.zcode/skills/photo-to-3d-demo` or a plain clone both
+work, because every script resolves its own directory (step 0 shows the assignment). `--check` exits
+non-zero when something is missing, so a fresh machine says what to install instead of failing three
+passes later.
+
+What the script installs:
+
+- `playwright-core` into the repo (`npm install`); it drives the Chrome already on the machine and
+  downloads no browser
+- an [img2threejs](https://github.com/img2threejs/img2threejs) checkout at
+  `$HOME/.cache/photo-to-3d/img2threejs` when no existing checkout is found; `--engine-dir DIR` and
+  `--no-engine` override that
+- nothing else. `three` and `esbuild` are pinned per workspace by `setup_workspace.sh`, because the
+  version that produced a signed-off review has to stay the version that reproduces it.
+
+`--check` then runs the generator's `--help` and launches one real browser through `drivers/index.mjs`,
+printing which driver resolved. That launch is the difference between "dependencies installed" and
+"the evidence pipeline works".
+
+Two optional variables, both with working defaults:
+
+| Variable | Default resolution | Set it when |
+| --- | --- | --- |
+| `IMG2THREEJS_ENGINE` | third argument to `build_pass.sh`, else `~/.workbuddy/skills/img2threejs`, else `~/.cache/photo-to-3d/img2threejs` | the upstream checkout lives elsewhere |
+| `PYTHON` | `python3`, falling back to `python` | neither exists on `PATH`, or `python3` there is older than 3.9 |
+
 ## Workspace layout
 
 ```
@@ -102,7 +135,7 @@ Fixed actions per pass (finish a pass before starting the next):
 # 1) regenerate the factory for this pass
 bash "$SKILL_DIR/assets/build/build_pass.sh" "$WP" <pass-id>
 # 2) serve the preview (first time)
-python -m http.server 8100 --directory "$WP/build" &
+python3 -m http.server 8100 --directory "$WP/build" &
 # 3) capture evidence frames (see references/browser-run.md)
 # 4) look at the frames -> edit the spec (not the generated .ts) -> back to 1)
 # 5) record the review (references/review-cli.md)
@@ -127,7 +160,7 @@ uses `--action stop`.
 ### 5. Optimize, then pack the single file
 
 ```bash
-python "$SKILL_DIR/assets/build/pack_single.py" "$WP/build" "$WP/dist/$SLUG.html"
+python3 "$SKILL_DIR/assets/build/pack_single.py" "$WP/build" "$WP/dist/$SLUG.html"
 ```
 
 - Converge textures first: 1024 to 512 (keep wordmarks and fine print at full size), shadow map
