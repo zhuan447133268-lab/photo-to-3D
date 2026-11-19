@@ -1,0 +1,52 @@
+photo-to-3d-demo
+Copyright 2026 the photo-to-3d-demo contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+-------------------------------------------------------------------------------
+Third-party software referenced by this project
+-------------------------------------------------------------------------------
+
+img2threejs
+  https://github.com/img2threejs/img2threejs
+  Licensed under the Apache License, Version 2.0.
+
+  This repository is a companion to img2threejs, not a fork. No source files from
+  img2threejs are copied here. The scripts call its command-line tools
+  (forge/stage3_build/generate_threejs_factory.py, forge/stage4_review/append_review.py)
+  and follow the pass ladder and spec schema that project defines. Install or clone it
+  separately; nothing is vendored.
+
+three.js
+  https://github.com/mrdoob/three.js
+  Licensed under the MIT License.
+
+  Installed by assets/build/setup_workspace.sh into a throwaway build directory
+  (pinned to three@0.169.0). Not redistributed by this repository. Generated
+  deliverables embed a bundle of three.js and therefore carry the MIT license and
+  its copyright notice when shipped to end users.
+
+esbuild
+  https://github.com/evanw/esbuild
+  Licensed under the MIT License.
+
+  Installed into the same throwaway build directory (pinned to esbuild@0.24.0) and
+  used only to bundle the viewer. Not redistributed by this repository.
+
+Playwright
+  https://github.com/microsoft/playwright
+  Licensed under the Apache License, Version 2.0.
+
+  Optional development dependency (playwright-core), used to drive a locally
+  installed Chrome for the capture and interaction tests. Not redistributed here,
+  and no browser binaries are bundled.
+
+-------------------------------------------------------------------------------
+Not included
+-------------------------------------------------------------------------------
+
+Product photographs used while developing this skill are deliberately absent from
+the repository. Every example workspace is created by the user from their own
+images. Brand names that appear in documentation (for instance the headphone model
+used as a worked example) identify the subject of a test run only; nothing in this
+repository is affiliated with, endorsed by, or licensed by those brands.

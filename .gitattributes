@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# shell scripts are executed by bash on every platform; a CRLF checkout breaks them
+*.sh text eol=lf
+*.py text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+
+*.png binary
+*.jpg binary

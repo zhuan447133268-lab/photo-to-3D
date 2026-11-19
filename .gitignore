@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# per-work run artifacts (a workspace created inside the repo by mistake must not be committed)
+/build/
+/dist/
+/review/
+/spec/
+/reference/
+*.html
+!assets/viewer/index.template.html
+
+# python
+__pycache__/
+*.pyc
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
