@@ -5,13 +5,15 @@ orbit, click a part to inspect it, explode the assembly, wireframe, auto-rotate,
 file you can mail to someone.
 
 A packed example ships in [`demo/`](demo/README.md): open `demo/mdr-zx310.html` by double-clicking, with
-nothing installed and nothing built.
+nothing installed and nothing built. [`demo/spoked-wheel-mesh.html`](demo/README.md) is the second route:
+a reconstructed mesh turned into 51 clickable parts — 24 spokes and 24 rivets included.
 
 ![Orbit](docs/screenshots/01-orbit.png)
 
 It is a front end for [img2threejs](https://github.com/img2threejs/img2threejs). Upstream walks a
 photo-derived spec through eight review passes, generates Three.js factory code from it, and stops
-there. This repository adds the delivery half:
+there. This repository adds the delivery half — and the same delivery half works on a mesh you already
+have, with no upstream checkout at all:
 
 | Upstream gives you | This repo adds |
 | --- | --- |
@@ -41,9 +43,36 @@ linkages, rivets, knit, engraved lettering do not come out of a photograph here 
 them from primitives too, and that is where attempts collapse into a pile of loose parts.
 
 The name describes the **input and the output**, not the method: a photo goes in, an interactive 3D page
-comes out, and a measured primitive assembly sits in between. If you need a reconstructed mesh with real
-topology, this is the wrong tool: that is neural image-to-3D (Hunyuan3D and similar) — a GPU service,
-credentials, network. Every delivery here states which parts were measured and which were inferred.
+comes out, and a measured primitive assembly sits in between. Every delivery states which parts were
+measured and which were inferred.
+
+### Two routes
+
+That ceiling belongs to the spec compiler, not to this pipeline. When a mesh exists, the same viewer, part
+tree, capture contract and six assertions apply — and then the geometry is whatever the reconstruction
+produced, spokes and rivets included.
+
+| You have | Route | Command |
+| --- | --- | --- |
+| photographs only | **A** — procedural spec, eight review passes | `build_pass.sh` |
+| a GLB/GLTF from Hunyuan3D, Tripo, Meshy, a scanner or a DCC tool | **B** — mesh import | `build_mesh.sh` |
+
+Route B does not reconstruct anything: no neural model ships here, nothing is uploaded, there is no GPU
+step. You bring the mesh; this pipeline makes it addressable, testable and single-file. The hard part is
+that a reconstructed GLB is usually one primitive with no named parts, so it is welded and segmented —
+connected components first, creases inside large shells, spatial chunks only when the mesh is noise:
+
+| Mesh | Segmentation | Parts |
+| --- | --- | --- |
+| merged CAD-style export (disjoint pieces) | components | one part per piece |
+| one extruded shell (gear, bracket) | components + creases | teeth / walls / caps |
+| neural reconstruction (one noisy surface) | spatial fallback | chunks, labelled as chunks |
+
+`window.__demo.model.userData.meshStats` reports which strategy actually ran.
+
+![Reconstructed mesh, exploded](docs/screenshots/05-mesh-wheel-explode.png)
+
+The shipped wheel demo, exploded: 51 parts, every one of them an island in the file.
 
 ## What you get
 
@@ -125,6 +154,37 @@ The test exits non-zero if any assertion fails and writes its screenshots next t
 change in each pass, and how to judge it, is in [`SKILL.md`](SKILL.md) and
 [`references/pipeline.md`](references/pipeline.md).
 
+## Quick start — route B: a mesh you already have
+
+No spec, no eight passes, and no img2threejs checkout: this path needs Node, `three`, `esbuild` and Python.
+
+```bash
+WP=~/photo-to-3d/my-widget
+bash ~/photo-to-3d-demo/assets/build/build_mesh.sh "$WP" /path/to/model.glb --locale en \
+  --ref-photo /path/to/photo.jpg          # optional: paints the "Input" card
+
+python3 ~/photo-to-3d-demo/assets/build/pack_single.py "$WP/build" "$WP/dist/widget.html" --mesh
+node ~/photo-to-3d-demo/assets/build/test_interactions.mjs --url http://127.0.0.1:8100/dist/widget.html \
+  --out "$WP/review/captures" --prefix mesh --driver playwright
+```
+
+The build welds duplicate vertices (a merged GLB is a non-indexed soup, so index-based connectivity would
+report one part per triangle), bakes node transforms, splits the surface into parts, normalises the mesh
+to unit size, and embeds the GLB as a base64 data URL so the packed page keeps `external_refs: []`.
+
+When the part tree is wrong, the flags are the only knobs — the mesh itself is not yours to edit:
+
+| Symptom | Flag |
+| --- | --- |
+| one part, nothing to explode | lower `--mesh-dihedral`, or `--mesh-partition spatial` |
+| caps and shells split off solid parts | raise `--mesh-min-segment-triangles` |
+| thousands of shards | lower `--mesh-max-parts` |
+| separate pieces came out merged | `--mesh-partition components` |
+| blown out | `--exposure` (mesh default 0.72) |
+
+Two fixtures ship in [`demo/fixtures/`](demo/README.md) and can be regenerated with
+`assets/build/make_sample_mesh.mjs`, so the mesh path is testable without a modelling tool or a network.
+
 ## The eight passes
 
 ```
@@ -147,16 +207,18 @@ screenshot files that exist on disk. Low scores are allowed; missing scores are 
 SKILL.md                    the procedure an agent follows, and when to refuse the job
 plugin.json                 manifest for the plugin harness (schema 1)
 demo/                       one packed deliverable, to open without building anything
-docs/screenshots/           the four frames the README shows, taken by the browser test
+docs/screenshots/           the five frames the README shows, taken by the browser test
 references/
   pipeline.md               what to change and what to look for in each pass
-  traps.md                  27 symptom -> cause -> fix entries from real deliveries
+  traps.md                  31 symptom -> cause -> fix entries from real deliveries
   review-cli.md             the append_review.py flag set, and the rules it enforces
   browser-run.md            both drivers, capture presets, emitImage
 assets/build/
   bootstrap.sh              dependency check + engine clone + one browser launch (--check)
   setup_workspace.sh        workspace tree + pinned three@0.169.0, esbuild@0.24.0
-  build_pass.sh             generate factory -> copy maps -> bundle
+  build_pass.sh             route A: generate factory -> copy maps -> bundle
+  build_mesh.sh             route B: embed GLB -> mesh_rig + viewer -> bundle
+  make_sample_mesh.mjs      regenerate demo/fixtures/*.glb with no modelling tool
   pack_single.py            inline JS + every texture, verify zero external refs
   browser.mjs               backend-agnostic page helpers
   capture_frames.mjs        seven capture presets
@@ -164,11 +226,14 @@ assets/build/
 assets/viewer/
   index.template.html       the page (localised en/zh)
   main.template.ts          picking, selection, explode, wireframe, HUD, capture hook
-  render_viewer.py          fills the templates from the generated factory exports
+  render_viewer.py          fills the templates from either a factory or a GLB
+  mesh_rig.ts               route B: loader, welding, segmentation, default rig
 drivers/
   playwright.mjs            launches Chrome itself; works anywhere
   zcode.mjs                 uses the host app's browser bridge
   index.mjs                 dispatcher (--driver, DEMO_DRIVER)
+demo/
+  fixtures/spoked-wheel.glb, gear.glb   mesh-path fixtures, regenerable from source
 ```
 
 `build/` and `dist/` never enter the repository; `setup_workspace.sh` puts them outside it.
@@ -198,8 +263,8 @@ assertions are identical. `references/browser-run.md` covers the bootstrap and t
   reconstruction, not a CAD model.
 - Glass- or mirror-heavy objects; the photo-derived maps degrade badly there.
 - When the user just wants a picture of a 3D thing — a short video is faster.
-- When the user needs a **reconstructed mesh** — spokes, linkages, rivets, real topology. That is a
-  neural image-to-3D service, not a spec compiler.
+- When the user needs a **reconstructed mesh** and has none — that is a neural image-to-3D service, not a
+  spec compiler. Once the mesh exists, route B delivers it.
 
 ## License
 

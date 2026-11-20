@@ -1,8 +1,8 @@
 ---
 name: photo-to-3d-demo
-description: Turn product photographs into a tested, single-file interactive Three.js demo (orbit, click-to-select, explode, wireframe), with per-pass review frames and browser-verified evidence. Geometry is a procedural primitive assembly compiled from a spec you author by looking at the photo, not a neural image-to-mesh reconstruction. Use when the user supplies a product photo and asks to "make it 3D", "turn this into a 3D model", "make it rotatable", "an interactive model", "an exploded view", "a web 3D display", or "a model from one image". Not suitable for faces, cloth, hair, engineering/CAD work, or anyone who needs a reconstructed mesh.
+description: Turn product photographs into a tested, single-file interactive Three.js demo (orbit, click-to-select, explode, wireframe), with per-pass review frames and browser-verified evidence. Two routes: a procedural primitive assembly compiled from a spec you author by looking at the photo, or a reconstructed mesh (GLB/GLTF from Hunyuan3D, Tripo, Meshy, a scanner or a DCC tool) delivered through the same viewer, part tree and tests. Use when the user supplies a product photo, a 3D mesh, or both and asks to "make it 3D", "turn this into a 3D model", "make it rotatable", "an interactive model", "an exploded view", "a web 3D display", "put my GLB on a web page". Not suitable for faces, cloth, hair, or engineering/CAD work.
 license: Apache-2.0
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Product photos to an interactive 3D web demo
@@ -44,9 +44,28 @@ State this at kickoff, in these words or their local equivalent:
 > primitives**. It is not a scanned or neurally reconstructed mesh. Spokes, linkages, rivets and other
 > fine topology are out of scope.
 
-If the user actually needs a reconstructed mesh, this route is the wrong one: that is neural image-to-3D
-(Hunyuan3D and similar), which needs a GPU service, credentials and network. Saying that is cheaper than
-shipping something the name promised and the pipeline could not deliver.
+### The second route: start from a mesh
+
+That boundary is a property of the **spec compiler**, not of this pipeline. When a mesh exists, the same
+viewer, part tree, capture contract and six assertions apply to it — the geometry is then whatever the
+reconstruction produced, topology included:
+
+| You have | Route | What decides the parts |
+| --- | --- | --- |
+| photographs only | **A — procedural spec** (`build_pass.sh`) | the component tree you write in `spec/object-sculpt-spec.json`; primitives, no pixels read |
+| a GLB/GLTF from Hunyuan3D, Tripo, Meshy, a phone scan or Blender/Fusion | **B — mesh import** (`build_mesh.sh`) | the mesh itself: connected components, then creases inside large shells, then spatial chunks if it is noise |
+
+Route B **does not reconstruct anything**. No neural model ships with this repo, nothing is uploaded, and
+there is no GPU step here: you bring the mesh, this pipeline makes it an addressable, testable,
+single-file page. Say that distinction at kickoff too, or the next reviewer will think the reconstruction
+happened here.
+
+Route B is also the answer for spokes, linkages, rivets and other fine topology: those are simply parts
+of the mesh, and the shipped `demo/spoked-wheel-mesh.html` is a 24-spoke, 24-rivet wheel delivered that
+way — 51 separately clickable parts, exploded, wireframed, six assertions green.
+
+If the user needs a reconstructed mesh and has no service, say so plainly: that is a GPU service with
+credentials (Hunyuan3D and similar), not something this skill can stand in for.
 
 ## Before starting: are the photos enough
 
@@ -58,7 +77,7 @@ shipping something the name promised and the pipeline could not deliver.
 | Transparent, mirrored or glass-heavy | Warn first: this route degrades badly on those materials |
 | Faces, cloth folds, hair, plants | Say this route is wrong; use scanning or conventional modelling |
 | Needs to be machined, maintained or assembled | Say no; this is not an engineering model |
-| Wants a reconstructed mesh (spokes, linkages, rivets, real topology) | Say no; that is neural image-to-3D, not this |
+| Wants a reconstructed mesh (spokes, linkages, rivets, real topology) | **Route B**: get the mesh first (Hunyuan3D / Tripo / Meshy / scanner), then `build_mesh.sh`. Do not fake it with primitives |
 
 Say this before starting, not after the work is done.
 
@@ -107,6 +126,9 @@ Two optional variables, both with working defaults:
                                    fixed so the build script needs no arguments, exports still carry the subject)
   src/main.ts                      viewer shell, from this repo's template
   src/index.template.html          viewer page
+  mesh/<slug>.glb                  route B: the mesh you were given (copied in; never edited)
+  src/mesh_rig.ts                  route B: loader, segmentation, default light/env/controls rig (generated copy)
+  src/mesh_data.ts                 route B: the GLB as a base64 data URL (generated; do not hand-edit)
   review/captures/                 evidence frames per pass
   review/compare-<pass>.png        reference-vs-render comparison sheets
   dist/<slug>.html                 the deliverable
@@ -116,7 +138,80 @@ Two optional variables, both with working defaults:
 `build/` is a scratch directory: **textures load by bare filename and must all sit at the build root**,
 or they silently come out black.
 
-## Steps
+## Route B — start from a reconstructed mesh
+
+Use this when the user has a GLB/GLTF (from a neural image-to-3D service, a phone or structured-light
+scan, or a DCC export). No spec, no eight passes, no engine clone: `build_mesh.sh` needs only Node,
+`three`, `esbuild` and Python.
+
+### B0. Check the file before spending time on it
+
+```bash
+ls -l model.glb                     # a few MB is normal; 100 MB is a scan and will be slow to open
+```
+
+| Symptom | Meaning |
+| --- | --- |
+| `.gltf` + `.bin` + textures as separate files | acceptable, but the packed page inlines only the mesh: convert to `.glb` first (`gltf-transform` or any exporter) |
+| Draco / meshopt compressed | this repo ships no decoder; re-export uncompressed |
+| no materials | fine — every part gets the same neutral clay, and the page says `clay-neutral` |
+| opens black in a viewer | no normals; the loader computes them |
+
+Record provenance in the delivery: which service, which input, what it cost. The page must not imply the
+reconstruction happened here.
+
+### B1. Build
+
+```bash
+bash "$SKILL_DIR/assets/build/build_mesh.sh" "$WP" /path/to/model.glb --locale en
+# optional, in any combination:
+#   --ref-photo /path/to/photo.jpg        paint the "Input" card with the source photo
+#   --mesh-partition components|angle|spatial   how a single-primitive GLB is cut into parts
+#   --mesh-dihedral 32                    crease threshold in degrees
+#   --mesh-max-parts 64                    part budget; the smallest pieces are folded into the nearest kept part
+#   --mesh-min-segment-triangles 1200      only shells this large are crease-split (a whole mesh smaller
+#                                          than this is split anyway — the threshold protects small
+#                                          shells inside a big one, it is not a "too small, skip" rule)
+#   --exposure 0.72                        mesh default; the factory default is 0.85
+```
+
+What it does beyond loading a GLB: bakes node transforms, welds duplicate vertices (**a merged GLB is a
+non-indexed soup where every triangle owns its vertices — without welding the whole model reads as one
+part per triangle**), segments the surface into parts, normalises the mesh to unit size so camera,
+ground and shadow maths need no per-model constants, and embeds the GLB as a data URL so the packed page
+keeps `external_refs: []`.
+
+### B2. Look at the frame; adjust the segmentation, not the geometry
+
+The mesh is not yours to edit. The only knobs are the partitioning flags. Click a part, explode, wireframe,
+then decide:
+
+| What you see | Change |
+| --- | --- |
+| one part only, nothing to explode | the surface has no creases sharp enough to cut: `--mesh-partition spatial`, or lower `--mesh-dihedral` first |
+| caps and shells split off what should be one solid | raise `--mesh-min-segment-triangles` |
+| thousands of shards | lower `--mesh-max-parts`; `auto` already falls back to spatial chunks past 4x the budget |
+| genuinely separate pieces came out merged | `--mesh-partition components` |
+| parts correct but the whole thing is blown out | `--exposure`, then re-check the `beauty` frame |
+
+`window.__demo.model.userData.meshStats` reports the strategy actually used, the raw patch count, the
+part count and the triangle count — quote those numbers at delivery instead of describing the split.
+
+### B3. Pack and test
+
+Same two commands as route A, with one flag:
+
+```bash
+python3 "$SKILL_DIR/assets/build/pack_single.py" "$WP/build" "$WP/dist/$SLUG.html" --mesh
+node "$SKILL_DIR/assets/build/test_interactions.mjs" --url http://127.0.0.1:8100/dist/$SLUG.html \
+  --out "$WP/review/captures" --prefix mesh --driver playwright
+```
+
+`--mesh` only suppresses the "no map PNGs" warning: a mesh delivery carries its textures inside the GLB.
+The six assertions are identical, and they are the real gate — a mesh that loads but cannot explode is
+not delivered.
+
+## Route A — photographs only: steps
 
 ### 0. Choose a slug, create the workspace
 
@@ -224,15 +319,22 @@ Four things, or it is not finished:
 
 ## Acceptance checklist
 
+Route A:
+
 - [ ] `reviewHistory` has eight entries and the last one is `action=stop`
 - [ ] `spec.assumptions` is non-empty and every line maps to a part that cannot be seen
 - [ ] `review/captures/` has at least one beauty frame per pass, plus silhouette / map-stripped on the
       passes where they matter
+
+Both routes:
+
 - [ ] the single file reports `external_refs: []`
 - [ ] all six browser assertions pass, with screenshots
 - [ ] the delivery text states which parts were measured and which were inferred
+- [ ] the page says which route produced it: a procedural assembly and a reconstructed mesh must not be
+      described in each other's words
 
-## Six traps that bite first
+## Traps that bite first
 
 Full symptom/cause/fix list in `references/traps.md`; the numbers below are that file's.
 
@@ -246,12 +348,18 @@ Full symptom/cause/fix list in `references/traps.md`; the numbers below are that
    mesh** (trap 13).
 6. Shadow camera near/far not fitted to the light's actual distance — contact shadow never appears
    (trap 10).
+7. Route B: a merged GLB is non-indexed, so index-based connectivity reports one part per triangle.
+   **Weld positions first** (trap 28).
+8. Route B: crease segmentation cuts the caps off every cylinder and calls them parts. **Segment inside
+   large shells only** (trap 29).
 
 ## When not to use this
 
 - The user wants a rough look — a short video is faster.
 - Photoreal or engineering accuracy is required — say it cannot deliver that.
-- Organic forms — use scanning or conventional modelling.
-- No usable photo — ask for one; do not start from imagination.
+- Organic forms — use scanning or conventional modelling (or Route B, if a mesh already exists).
+- No usable photo and no mesh — ask for one; do not start from imagination.
+- The user expects **this pipeline** to reconstruct a mesh from a photo — it does not; bring a mesh
+  (Route B) or accept primitives (Route A). Saying which one you are doing is part of the job.
 - The user means "reconstruct the mesh from the pixels" — that is a neural image-to-3D service, not a
   spec compiler. Nothing in this repository turns pixels into topology.

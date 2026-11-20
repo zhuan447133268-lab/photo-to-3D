@@ -1,8 +1,8 @@
 # Traps: symptom → cause → fix
 
 All of these come from one real delivery (Sony MDR-ZX310, 18 parts, eight review passes) plus the
-browser work that followed. Look up by symptom; the numbers are stable and referenced from the other
-documents.
+browser and mesh-import work that followed. Look up by symptom; the numbers are stable and referenced
+from the other documents.
 
 ## Geometry / generator
 
@@ -188,4 +188,49 @@ documents.
 - Fix: say it at kickoff, before any modelling: *"手量比例 + 基础体拼装的可交互展示，不是扫描/神经重建
   的网格；辐条、连杆、铆钉这类细节不在范围内。"* Keep the same sentence in the delivery, next to the list
   of measured vs inferred parts. If they need the mesh, point them at neural image-to-3D (Hunyuan3D and
-  similar) — that needs a GPU service, credentials and network, and it is a different product.
+  similar) — that needs a GPU service, credentials and network, and it is a different product. **Once that
+  mesh exists, route B delivers it** (`build_mesh.sh`), so this trap is about the input, not the viewer.
+
+## Mesh mode (route B)
+
+### 28. A merged GLB comes out as one part per triangle
+- Symptom: `meshStats.parts` equals the triangle count (182k parts on a 182k-triangle wheel), or the
+  explode scatters dust instead of parts.
+- Cause: a merged export is **non-indexed** — every triangle carries its own three vertices, so two
+  triangles that share an edge still have different vertex indices. Connectivity taken over indices
+  therefore finds no neighbour anywhere, and every triangle becomes its own component.
+- Fix: weld by quantized position *before* segmenting (epsilon = bounding-box diagonal × 1e-6, which is
+  below any real feature and above float noise). `mesh_rig.ts` does this in `weldCorners()`; any tool of
+  your own has to do the same, and the tell that you forgot is a part count equal to the triangle count.
+
+### 29. Crease segmentation cuts the caps off solid parts
+- Symptom: a gear's flat face and its toothed wall become separate parts; explode leaves the teeth behind
+  like a ring.
+- Cause: the dihedral splitter only knows angles. A 90° corner between a cap and a side wall is
+  geometrically identical to a real part seam, so on CAD-like solids it cuts a solid open.
+- Fix: raise `--mesh-min-segment-triangles` until the small caps are folded back into their shell, or use
+  `--mesh-partition components` when the pieces are already disjoint. Nothing in a GLB says which triangles
+  belong to the same part unless the exporter kept node names — the flags are a proxy for that missing
+  information, not a solver.
+
+### 30. Spatial chunks are not parts, and the page says so
+- Symptom: 64 evenly spread pieces labelled `spatial-chunk`; the mesh looks shattered into a Voronoi
+  pattern rather than taken apart.
+- Cause: the surface is one noisy shell with no usable creases, so `auto` falls back to k-means over
+  triangle centroids. That cuts by distance, not by structure — a chunk is a region, not a component.
+- Fix: accept the label (it is deliberately `spatial-chunk`, never `mesh-part`) and say "64 spatial
+  regions" instead of "64 parts" in the delivery. To get real parts, improve the input — a retopologised
+  mesh or an export with named nodes — because no flag invents structure that is not in the geometry.
+
+## Tests
+
+### 31. The select assertion fails on a page where selection works
+- Symptom: `select: { ok: false, hit: null }`, while clicking the same pixel by hand lights a part. The aim
+  point is at the middle of the viewport, on a gear face that is clearly visible.
+- Cause: the assertion projected each part's **node position** and clicked the nearest one. That position is
+  the part's centroid, and a centroid can be in empty space — a gear face is an annulus, so the centre of
+  the part is the hole. The click ray passes through the hole and hits nothing, and the page is blamed for
+  it.
+- Fix: aim at a sampled **surface vertex** instead (project real vertices, nearest the viewport centre
+  first) and walk down the candidate list until a click selects something. `test_interactions.mjs` does that
+  since 0.2.0. A part origin is a position, not a guarantee that the pixel under it belongs to the part.

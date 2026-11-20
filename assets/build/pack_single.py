@@ -27,6 +27,9 @@ if len(sys.argv) < 3:
 
 BUILD = pathlib.Path(sys.argv[1]).resolve()
 OUT = pathlib.Path(sys.argv[2]).resolve()
+# Mesh deliveries carry no map PNGs (the GLB brings its own textures, embedded) — do not warn about a
+# missing texture table that this route never had.
+MESH_MODE = "--mesh" in sys.argv[3:]
 
 for required in ("app.js", "index.html"):
     if not (BUILD / required).exists():
@@ -65,5 +68,5 @@ print(json.dumps(report, indent=1))
 if report["external_refs"]:
     print("still references external files: " + ", ".join(report["external_refs"]), file=sys.stderr)
     raise SystemExit(1)
-if not maps:
+if not maps and not MESH_MODE:
     print("warning: no map PNGs were embedded — did the textures reach the build root?", file=sys.stderr)

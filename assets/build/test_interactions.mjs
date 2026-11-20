@@ -58,60 +58,92 @@ export async function testInteractions(tab, opts) {
   await snap("01-orbit");
 
   // ---------- 2. click-to-select ----------
-  const target = await tab.playwright.evaluate(() => {
+  // Aim at a pixel that is actually on the surface. A part's node position is its centroid, and a centroid
+  // can sit in a hole rather than on the part — a gear face is an annulus, so its middle is empty space and
+  // clicking it selects nothing. Sample real vertices instead, nearest the middle of the viewport first.
+  const candidates = await tab.playwright.evaluate(() => {
     const d = window.__demo;
-    let best = null;
-    // Project each part's node position; pick the one nearest the middle of the viewport. The node's own
-    // position is where the part actually sits in the assembly, which is what a person aims at.
     const cx = innerWidth / 2;
     const cy = innerHeight / 2;
+    const V = d.camera.position.constructor;
+    const tmp = new V();
+    const found = [];
     for (const part of d.parts) {
       if (!part.node.isObject3D) continue;
-      const v = part.node.getWorldPosition(d.camera.position.clone().set(0, 0, 0)).project(d.camera);
-      if (v.z > 1 || Math.abs(v.x) > 0.95 || Math.abs(v.y) > 0.95) continue;
-      const x = (v.x * 0.5 + 0.5) * innerWidth;
-      const y = (-v.y * 0.5 + 0.5) * innerHeight;
-      const dist = Math.hypot(x - cx, y - cy);
-      if (!best || dist < best.dist) best = { id: part.id, x: Math.round(x), y: Math.round(y), dist };
+      const meshes = [];
+      part.node.traverse((o) => {
+        if (o.isMesh && o.geometry?.attributes?.position) meshes.push(o);
+      });
+      for (const mesh of meshes) {
+        const pos = mesh.geometry.attributes.position;
+        // Up to ~40 samples per mesh: enough to land on a tooth, a spoke or a rivet, cheap enough to stay
+        // inside one evaluate call on a 40-part assembly.
+        const step = Math.max(1, Math.floor(pos.count / 40));
+        for (let i = 0; i < pos.count; i += step) {
+          tmp.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld).project(d.camera);
+          if (tmp.z > 1 || Math.abs(tmp.x) > 0.92 || Math.abs(tmp.y) > 0.92) continue;
+          const x = (tmp.x * 0.5 + 0.5) * innerWidth;
+          const y = (-tmp.y * 0.5 + 0.5) * innerHeight;
+          found.push({ id: part.id, x: Math.round(x), y: Math.round(y), dist: Math.hypot(x - cx, y - cy) });
+        }
+      }
     }
-    return best;
-  }, null, { timeoutMs: 4000 });
+    found.sort((a, b) => a.dist - b.dist);
+    // One candidate per pixel row/column pair: 40 clicks on the same triangle is 39 wasted round trips.
+    const seen = new Set();
+    const out = [];
+    for (const p of found) {
+      const key = p.x + ":" + p.y;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+      if (out.length >= 80) break;
+    }
+    return out;
+  }, null, { timeoutMs: 6000 });
 
-  results.select = { aim: target };
-  if (target) {
-    const sel = await tab.playwright.evaluate((p) => {
+  if (candidates.length) {
+    const sel = await tab.playwright.evaluate((points) => {
       const c = document.getElementById("view");
-      const mk = (t) => new PointerEvent(t, {
-        clientX: p.x, clientY: p.y, bubbles: true, pointerId: 1, pointerType: "mouse",
+      const readout = document.getElementById("readout");
+      const mk = (t, x, y) => new PointerEvent(t, {
+        clientX: x, clientY: y, bubbles: true, pointerId: 1, pointerType: "mouse",
         buttons: t === "pointerup" ? 0 : 1,
       });
-      c.dispatchEvent(mk("pointerdown"));
-      c.dispatchEvent(mk("pointerup"));
-      const readout = document.getElementById("readout");
-      const lit = [];
-      window.__demo.model.traverse((o) => {
-        const e = o.isMesh && o.material?.emissive;
-        if (e && (e.r + e.g + e.b) > 0.01) lit.push(o.userData?.sculptComponent?.id ?? "?");
-      });
-      return { text: readout.textContent.trim(), active: readout.classList.contains("active"), lit };
-    }, target, { timeoutMs: 3000 });
-
-    // Every lit mesh must belong to one part id: two ids means a mirrored twin lit up as well.
-    const ids = [...new Set(sel.lit)];
-    results.select = {
-      ...results.select,
-      ok: sel.active && sel.text.length > 0 && ids.length === 1,
-      // `aim` is the part whose origin sits nearest the viewport centre; `hit` is what the ray actually
-      // found under that pixel. They can differ when one part is in front of another, and only the
-      // second one tells you whether the click landed on a single part.
-      hit: ids[0] ?? null,
-      readout: sel.text,
-      litParts: ids,
-      active: sel.active,
-    };
+      const litIds = () => {
+        const lit = [];
+        window.__demo.model.traverse((o) => {
+          const e = o.isMesh && o.material?.emissive;
+          if (e && (e.r + e.g + e.b) > 0.01) lit.push(o.userData?.sculptComponent?.id ?? "?");
+        });
+        return [...new Set(lit)];
+      };
+      // Walk up the candidate list until one click lands on the model. Every miss also exercises the
+      // clear-on-empty-click path, so a page that never clears would show up as lit parts here.
+      for (const p of points) {
+        c.dispatchEvent(mk("pointerdown", p.x, p.y));
+        c.dispatchEvent(mk("pointerup", p.x, p.y));
+        if (!readout.classList.contains("active")) continue;
+        const ids = litIds();
+        return {
+          aim: p,
+          hit: ids[0] ?? null,
+          litParts: ids,
+          readout: readout.textContent.trim(),
+          active: true,
+          // Every lit mesh must belong to one part id: two ids means a mirrored twin lit up as well.
+          ok: readout.textContent.trim().length > 0 && ids.length === 1,
+        };
+      }
+      return { aim: null, hit: null, litParts: litIds(), readout: readout.textContent.trim(), active: false, ok: false, tried: points.length };
+    }, candidates, { timeoutMs: 10000 });
+    // `aim` is the pixel the click was dispatched at; `hit` is the part the ray found there. They are the
+    // same id here because the aim point is a vertex of a real part, but the assertion only cares that
+    // exactly one part lit up.
+    results.select = sel;
     await snap("02-select");
   } else {
-    results.select.ok = false;
+    results.select = { ok: false, note: "no part projected inside the viewport" };
   }
 
   // A click that hits no part has to clear the highlight: a stale selection keeps one shell blue for
