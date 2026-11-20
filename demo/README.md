@@ -28,9 +28,11 @@ Built from a single product photograph by the eight passes described in [`../SKI
 interaction-pass -> optimization-pass`. The workspace that holds the spec (component tree, materials,
 assumptions, review history) is per-run data and is not shipped here; this file is the artifact.
 
-What this is: a visual reconstruction — 36 component nodes, 18 meshes, 35 textures, shaded to match the
-photo. What it is not: a CAD model. It has no dimensional accuracy, no internal structure, and cannot be
-used for machining, maintenance or assembly.
+What this is: a measured primitive assembly — 36 component nodes, 18 meshes, 35 textures, shaded to match
+the photo. The geometry is boxes, cylinders and lathes placed by hand-written numbers in the spec; the
+textures are the only part extracted from pixels. What it is not: a CAD model, and not a reconstructed
+mesh. It has no dimensional accuracy, no internal structure, and cannot be used for machining,
+maintenance or assembly.
 
 Faces that the photograph does not show were inferred by symmetry. That inference is recorded in the
 spec's `assumptions`, and it is the reason the rear of the headband is smooth rather than detailed.

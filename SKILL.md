@@ -1,6 +1,6 @@
 ---
 name: photo-to-3d-demo
-description: Turn one or more product photographs into a tested, single-file interactive Three.js demo (orbit, click-to-select, explode, wireframe), with per-pass review frames and browser-verified evidence. Use when the user supplies a product photo and asks to "make it 3D", "turn this into a 3D model", "make it rotatable", "an interactive model", "an exploded view", "a web 3D display", or "a model from one image". Not suitable for faces, cloth, hair, or engineering/CAD work.
+description: Turn product photographs into a tested, single-file interactive Three.js demo (orbit, click-to-select, explode, wireframe), with per-pass review frames and browser-verified evidence. Geometry is a procedural primitive assembly compiled from a spec you author by looking at the photo, not a neural image-to-mesh reconstruction. Use when the user supplies a product photo and asks to "make it 3D", "turn this into a 3D model", "make it rotatable", "an interactive model", "an exploded view", "a web 3D display", or "a model from one image". Not suitable for faces, cloth, hair, engineering/CAD work, or anyone who needs a reconstructed mesh.
 license: Apache-2.0
 version: 0.1.0
 ---
@@ -22,6 +22,32 @@ version: 0.1.0
 - **Do not build what cannot be seen and is not constrained** (drivers, circuit boards, screw bosses).
   Inventing them is storytelling; leave them out and list them under known gaps.
 
+## What this is, precisely — say it before starting
+
+The name oversells unless you say this out loud first. A user who hears "photo to 3D" expects a
+reconstructed mesh; this is not that, and delivering a blocky stand-in without warning is the fastest way
+to lose their trust.
+
+| Layer | Where it comes from | Reads the photo? |
+| --- | --- | --- |
+| Geometry | numbers you write into `spec.componentTree` after looking at the photo | **No.** `generate_threejs_factory.py` never opens an image; it compiles the spec into primitives (box / cylinder / cone / lathe / extrude) |
+| Materials | optional pixel extraction: `spec/crops/*.png` → palette + albedo / roughness / height / normal / ao | **Yes** — the engine's stage1 extractors read pixels; the shipped demo's maps came from exactly that |
+| Proportions and part boundaries | you, comparing the rendered frame against the photo | **No solver.** It is the model looking, not a measurement |
+
+So the fidelity ceiling is the resolution of **primitives**, not the resolution of the photo. Spokes,
+linkages, rivets, knit, engraved lettering do not appear unless you also build them out of primitives —
+which is where attempts collapse into "a pile of loose parts".
+
+State this at kickoff, in these words or their local equivalent:
+
+> This produces an interactive display that was **measured off the photo by hand and assembled from
+> primitives**. It is not a scanned or neurally reconstructed mesh. Spokes, linkages, rivets and other
+> fine topology are out of scope.
+
+If the user actually needs a reconstructed mesh, this route is the wrong one: that is neural image-to-3D
+(Hunyuan3D and similar), which needs a GPU service, credentials and network. Saying that is cheaper than
+shipping something the name promised and the pipeline could not deliver.
+
 ## Before starting: are the photos enough
 
 | Situation | Action |
@@ -32,6 +58,7 @@ version: 0.1.0
 | Transparent, mirrored or glass-heavy | Warn first: this route degrades badly on those materials |
 | Faces, cloth folds, hair, plants | Say this route is wrong; use scanning or conventional modelling |
 | Needs to be machined, maintained or assembled | Say no; this is not an engineering model |
+| Wants a reconstructed mesh (spokes, linkages, rivets, real topology) | Say no; that is neural image-to-3D, not this |
 
 Say this before starting, not after the work is done.
 
@@ -226,3 +253,5 @@ Full symptom/cause/fix list in `references/traps.md`; the numbers below are that
 - Photoreal or engineering accuracy is required — say it cannot deliver that.
 - Organic forms — use scanning or conventional modelling.
 - No usable photo — ask for one; do not start from imagination.
+- The user means "reconstruct the mesh from the pixels" — that is a neural image-to-3D service, not a
+  spec compiler. Nothing in this repository turns pixels into topology.

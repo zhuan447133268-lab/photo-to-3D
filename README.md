@@ -9,9 +9,9 @@ nothing installed and nothing built.
 
 ![Orbit](docs/screenshots/01-orbit.png)
 
-It is a front end for [img2threejs](https://github.com/img2threejs/img2threejs). Upstream reconstructs a
-model from a photo by generating Three.js factory code, pass by pass, and stops there. This repository
-adds the delivery half:
+It is a front end for [img2threejs](https://github.com/img2threejs/img2threejs). Upstream walks a
+photo-derived spec through eight review passes, generates Three.js factory code from it, and stops
+there. This repository adds the delivery half:
 
 | Upstream gives you | This repo adds |
 | --- | --- |
@@ -22,6 +22,28 @@ adds the delivery half:
 | — | a driver layer so the same test runs headless or inside an app session |
 
 Nothing from img2threejs is copied here; the scripts call its CLI. See [NOTICE](NOTICE).
+
+## What this is (and is not)
+
+The generator **never opens the photo**. `generate_threejs_factory.py` reads
+`spec/object-sculpt-spec.json` and compiles it into Three.js primitives — box, cylinder, cone, lathe,
+extrude. The numbers in that spec were written by an agent (or a person) after looking at the
+photograph. That is the whole trick, and it is worth saying plainly:
+
+| Layer | Source | Reads pixels? |
+| --- | --- | --- |
+| geometry | numbers in the spec, assembled from primitives | **no** |
+| materials | crops → palette + albedo / roughness / height / normal / ao | **yes** — the stage1 extractors read pixels; the demo's 35 maps came from exactly this |
+| proportions | a person or model comparing a render against the photo | no solver, no measurement |
+
+So the fidelity ceiling is the resolution of **primitives**, not the resolution of the photo. Spokes,
+linkages, rivets, knit, engraved lettering do not come out of a photograph here — you would have to build
+them from primitives too, and that is where attempts collapse into a pile of loose parts.
+
+The name describes the **input and the output**, not the method: a photo goes in, an interactive 3D page
+comes out, and a measured primitive assembly sits in between. If you need a reconstructed mesh with real
+topology, this is the wrong tool: that is neural image-to-3D (Hunyuan3D and similar) — a GPU service,
+credentials, network. Every delivery here states which parts were measured and which were inferred.
 
 ## What you get
 
@@ -128,7 +150,7 @@ demo/                       one packed deliverable, to open without building any
 docs/screenshots/           the four frames the README shows, taken by the browser test
 references/
   pipeline.md               what to change and what to look for in each pass
-  traps.md                  26 symptom -> cause -> fix entries from real deliveries
+  traps.md                  27 symptom -> cause -> fix entries from real deliveries
   review-cli.md             the append_review.py flag set, and the rules it enforces
   browser-run.md            both drivers, capture presets, emitImage
 assets/build/
@@ -176,6 +198,8 @@ assertions are identical. `references/browser-run.md` covers the bootstrap and t
   reconstruction, not a CAD model.
 - Glass- or mirror-heavy objects; the photo-derived maps degrade badly there.
 - When the user just wants a picture of a 3D thing — a short video is faster.
+- When the user needs a **reconstructed mesh** — spokes, linkages, rivets, real topology. That is a
+  neural image-to-3D service, not a spec compiler.
 
 ## License
 

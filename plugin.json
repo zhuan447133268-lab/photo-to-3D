@@ -2,7 +2,7 @@
   "schema": 1,
   "name": "product-demo",
   "version": "0.1.0",
-  "description": "Product photographs to a tested, single-file interactive Three.js demo: viewer shell, evidence capture, interaction assertions.",
+  "description": "Product photographs to a tested, single-file interactive Three.js demo. Geometry is a procedural primitive assembly compiled from a spec authored by looking at the photo; materials can be pixel-extracted. Viewer shell, evidence capture, interaction assertions.",
   "license": "Apache-2.0",
   "capabilities": [
     {

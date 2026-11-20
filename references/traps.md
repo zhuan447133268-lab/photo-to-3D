@@ -176,3 +176,16 @@ documents.
 - Fix: serve a directory containing only the single file (`python3 -m http.server 8101 --directory
   dist`) and test "zero external dependencies" through that. Mention that a real browser can also open
   it by double-clicking.
+
+## Scope / expectations
+
+### 27. The user heard "photo to 3D" and expected a reconstructed mesh
+- Symptom: "挂羊头卖狗肉" — they read the name, expected spokes, linkages, rivets and real topology, and got
+  a pile of boxes and cylinders. Every part looks like a primitive because every part *is* a primitive.
+- Cause: `generate_threejs_factory.py` never opens the image. It compiles `spec.componentTree` — numbers a
+  human or agent wrote after looking at the photo — into box / cylinder / cone / lathe / extrude. Only the
+  **materials** come from pixels (stage1 extractors). No network, no inference, no topology recovery.
+- Fix: say it at kickoff, before any modelling: *"手量比例 + 基础体拼装的可交互展示，不是扫描/神经重建
+  的网格；辐条、连杆、铆钉这类细节不在范围内。"* Keep the same sentence in the delivery, next to the list
+  of measured vs inferred parts. If they need the mesh, point them at neural image-to-3D (Hunyuan3D and
+  similar) — that needs a GPU service, credentials and network, and it is a different product.
